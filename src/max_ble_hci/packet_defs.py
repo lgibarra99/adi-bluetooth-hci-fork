@@ -741,6 +741,9 @@ class VendorSpecificOCF(Enum):
 
     BT_TX_TEST = 0x71
     """Bluetooth Classic transmitter test"""
+    
+    HDS_EM = 0xFC80
+    """HDS EM command."""
 
 
 @dataclass
