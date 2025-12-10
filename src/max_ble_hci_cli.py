@@ -1024,7 +1024,7 @@ Default: {hex(DEFAULT_CE_LEN)}""",
         "--pt",
         dest="packet_type",
         type=int,
-        default=1,
+        default=0,
         help="""Tx Test packet type
         0: DM1
         1: DH1
@@ -1107,8 +1107,23 @@ Default: {hex(DEFAULT_CE_LEN)}""",
         3: DH3
         4: DM5
         5: DH5
-        Default: DM1
-        """,
+        6: 2DH1
+        7: 3DH1
+        8: 2DH3
+        9: 3DH3
+        10: 2DH5
+        11: 3DH5
+        12: HV1
+        13: HV2
+        14: HV3
+        15: EV3
+        16: EV4
+        17: EV5
+        18: 2EV3
+        19: 3EV3
+        20: 2EV5
+        21: 3EV5
+        Default: DM1""",
     )
     rx_test_bt_vs_parser.add_argument(
         "-i",
