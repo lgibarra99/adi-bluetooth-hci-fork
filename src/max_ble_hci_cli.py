@@ -78,6 +78,7 @@ from max_ble_hci import BleHci
 from max_ble_hci.constants import (
     PayloadOption,
     PhyOption,
+    PatternOption,
     AddrType,
 )
 from max_ble_hci.data_params import (
@@ -1166,6 +1167,60 @@ Default: {hex(DEFAULT_CE_LEN)}""",
         ),
     )
 
+    #### TX_FGEN_VS PARSER ####
+
+    tx_fgen_vs_parser = subparsers.add_parser(
+        "tx-fgen-vs",
+        aliases=["fgen"],
+        help="Execute the vendor-specific function generator",
+        formatter_class=RawTextHelpFormatter,
+    )
+    tx_fgen_vs_parser.add_argument(
+        "-e",
+        "--enable",
+        dest="enable",
+        type=int,
+        default=1,
+        help="Enable or disable Function Generator. Default: 1 (enable)",
+    )
+    tx_fgen_vs_parser.add_argument(
+        "-c",
+        "--channel",
+        dest="channel",
+        type=int,
+        default=0,
+        help="""
+        Channel to transmit continuous function generation on
+        Default: 0
+        Range: 0-39
+        """,
+    )
+    tx_fgen_vs_parser.add_argument(
+        "-p",
+        "--pattern-type",
+        dest="pattern_type",
+        type=int,
+        default=0,
+        help="""
+        Vendor-specific Pattern Type to transmit
+        0: Carrier Wave
+        1: PRBS9
+        2: PRBS15
+        3: DF1
+        4: DF2
+        Default: Carrier Wave
+        """,
+    )
+    tx_fgen_vs_parser.set_defaults(
+        func=lambda args: print(
+            hci.tx_fgen_vs(
+                enable=args.enable,
+                channel=args.channel,
+                pattern_type=PatternOption(args.pattern_type),
+            )
+        ),
+    )
+
     #### ENDTEST PARSER ####
     endtest_parser = subparsers.add_parser(
         "end-test",
@@ -1532,14 +1587,6 @@ Default: {hex(DEFAULT_CE_LEN)}""",
 
     flush_parser = subparsers.add_parser("flush", help="Flush serial port")
     flush_parser.set_defaults(func=lambda _: hci.port.flush())
-
-    def _script_runner(script_path):
-        print(script_path)
-        with open(script_path, "r", encoding="utf-8") as script:
-            commands = script.readlines()
-
-        if commands:
-            _run_input_cmds(commands, terminal)
 
     run_parser = subparsers.add_parser(
         "run",
