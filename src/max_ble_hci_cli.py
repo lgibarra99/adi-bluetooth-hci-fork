@@ -886,14 +886,22 @@ Default: {hex(DEFAULT_CE_LEN)}""",
         nargs="?",
         choices=("min", "MIN", "max", "MAX"),
         default="max",
-        help="""Set the Tx power level
-        min: 0x7F
-        max: 0x7E
-        Default: max""",
+        help="""Set the Tx power level (ONLY works with --mode 4)
+        min: 0x7E (minimum power)
+        max: 0x7F (maximum power)
+        Default: max
+
+        NOTE: Power control is only supported in V4 mode.
+        The tool will automatically switch to --mode 4 when --power min is specified.""",
     )
 
-    tx_test_parser.set_defaults(
-        func=lambda args: print(
+    def tx_test_wrapper(args):
+        # If power is explicitly set to min and mode is Enhanced, auto-switch to V4
+        if args.power and args.power.lower() == "min" and args.mode == 1:
+            print("INFO: Power control requires V4 mode. Automatically switching to --mode 4")
+            args.mode = 4
+
+        return print(
             hci.tx_test(
                 mode=args.mode,
                 channel=args.channel,
@@ -904,8 +912,9 @@ Default: {hex(DEFAULT_CE_LEN)}""",
                 cte_type=args.cte_type,
                 power=args.power,
             )
-        ),
-    )
+        )
+
+    tx_test_parser.set_defaults(func=tx_test_wrapper)
 
     #### TXTESTVS PARSER ####
     tx_test_vs_parser = subparsers.add_parser(
