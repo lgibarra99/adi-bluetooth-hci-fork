@@ -36,12 +36,14 @@ Features:
     - Flexible device configuration (name, class, timeouts)
     - Extended Inquiry Response (EIR) support
     - Connectable and/or discoverable modes
+    - Device Under Test (DUT) mode for Bluetooth testing
 
 Known Limitations (Controller Firmware Bugs in UART Mode):
-    - Write Local Name (0x0C13) is DISABLED - ring buffer accounting error,
-      controller hangs waiting for "missing" bytes. Use EIR for device name.
-    - Write Inquiry Scan Activity (0x0C43) is DISABLED - controller receives
-      command but never sends response.
+    - Write Local Name (0x0C13) is DISABLED - data loss bug (~15 bytes lost)
+    - Write Inquiry Scan Activity (0x0C43) is DISABLED - no response sent
+    - Write Extended Inquiry Response (0x0C52) is DISABLED by default - data loss
+      bug (~23 bytes lost). Device name cannot be advertised in UART mode.
+    - Use --enable-eir flag to attempt EIR (will likely timeout)
     - See HCI_Write_Local_Name_UART_Bug_Analysis.md for detailed analysis
 """
 
@@ -58,6 +60,7 @@ OGF_LINK_POLICY = 0x02      # Link Policy commands
 OGF_CONTROLLER = 0x03       # Controller & Baseband commands
 OGF_INFORMATIONAL = 0x04    # Informational parameters
 OGF_STATUS = 0x05           # Status parameters
+OGF_TESTING = 0x06          # Testing commands
 OGF_LE_CONTROLLER = 0x08    # LE Controller commands
 
 # Controller/Baseband OCF values (OGF=0x03)
@@ -78,6 +81,9 @@ OCF_READ_LOCAL_COMMANDS = 0x0002        # 0x1002
 OCF_READ_LOCAL_FEATURES = 0x0003        # 0x1003
 OCF_READ_BUFFER_SIZE = 0x0005           # 0x1005
 OCF_READ_BD_ADDR = 0x0009               # 0x1009
+
+# Testing OCF values (OGF=0x06)
+OCF_ENABLE_DUT_MODE = 0x0003            # 0x1803
 
 # Scan enable modes
 SCAN_DISABLED = 0x00
@@ -423,8 +429,11 @@ class BluetoothClassicApp:
     def write_extended_inquiry_response(self, eir_data=None, device_name=None):
         """Write Extended Inquiry Response (EIR) data.
 
-        This is the recommended way to set the device name in UART mode
-        (since HCI_Write_Local_Name is broken).
+        **WARNING**: This command also suffers from the UART mode data loss bug.
+        Large payloads (241 bytes) lose ~23 bytes during UART reception, causing
+        the controller to hang. This command is DISABLED by default in bt_app.py.
+
+        Use --enable-eir flag to attempt (will likely timeout in UART mode).
 
         Parameters
         ----------
@@ -437,6 +446,11 @@ class BluetoothClassicApp:
         -------
         event
             HCI Command Complete event
+
+        Raises
+        ------
+        TimeoutError
+            In UART mode due to data loss bug
         """
         if device_name is None:
             device_name = self.device_name
@@ -496,6 +510,43 @@ class BluetoothClassicApp:
         print(f"Scan enable response: {event}")
         return event
 
+    def enable_dut_mode(self):
+        """Enable Device Under Test (DUT) mode.
+
+        This command enables the Device Under Test mode for Bluetooth testing.
+        When DUT mode is enabled, the controller enters a special test mode
+        that allows various RF test operations.
+
+        **WARNING**: Enabling DUT mode typically disables normal Bluetooth
+        operations. This command should only be used for testing purposes.
+
+        The DUT mode is commonly used for:
+        - Bluetooth qualification testing
+        - RF characterization
+        - Production line testing
+        - Regulatory compliance testing
+
+        Returns
+        -------
+        event
+            HCI Command Complete event
+
+        Note
+        ----
+        After enabling DUT mode, the controller may require a reset to return
+        to normal operation mode.
+        """
+        print("\n=== Enable Device Under Test (DUT) Mode ===")
+        print("WARNING: This will put the device into test mode")
+        print("         Normal Bluetooth operations may be disabled")
+
+        cmd = CommandPacket(OGF_TESTING, OCF_ENABLE_DUT_MODE, params=[])
+        event = self.controller.port.send_command(cmd)
+        print(f"DUT mode response: {event}")
+
+        print("\nDUT mode enabled. Device is now in test mode.")
+        return event
+
     # =========================================================================
     # High-Level Initialization
     # =========================================================================
@@ -531,13 +582,15 @@ class BluetoothClassicApp:
         self.write_class_of_device()
         self.write_page_timeout()
 
-    def setup_discoverability(self, device_name=None):
-        """Setup device discoverability with EIR.
+    def setup_discoverability(self, device_name=None, enable_eir=False):
+        """Setup device discoverability with optional EIR.
 
         Parameters
         ----------
         device_name : str, optional
             Device name for EIR (uses self.device_name if None)
+        enable_eir : bool, optional
+            Enable Extended Inquiry Response (default: False due to UART bug)
         """
         print("\n" + "=" * 70)
         print("Setting Up Discoverability")
@@ -547,10 +600,20 @@ class BluetoothClassicApp:
         time.sleep(0.5)  # Controller may send spurious events
         self.flush_serial()
 
-        self.write_extended_inquiry_response(device_name=device_name)
-        time.sleep(0.2)
+        if enable_eir:
+            print("\nWARNING: EIR enabled - this may fail in UART mode due to data loss bug")
+            try:
+                self.write_extended_inquiry_response(device_name=device_name)
+                time.sleep(0.2)
+            except Exception as e:
+                print(f"\nERROR: EIR command failed (expected in UART mode): {e}")
+                print("Continuing without EIR - device name will not be advertised")
+        else:
+            print("\nNOTE: EIR disabled - device name will not be advertised via Extended Inquiry Response")
+            print("      (EIR disabled by default due to UART mode data loss bug)")
+            print("      Use --enable-eir flag to attempt EIR (may timeout)")
 
-    def initialize(self, discoverable=True, connectable=True):
+    def initialize(self, discoverable=True, connectable=True, enable_eir=None, enable_dut=False):
         """Run complete initialization sequence for Bluetooth Classic device.
 
         Parameters
@@ -559,6 +622,15 @@ class BluetoothClassicApp:
             Enable inquiry scan (default: True)
         connectable : bool, optional
             Enable page scan (default: True)
+        enable_eir : bool, optional
+            Enable Extended Inquiry Response (default: None, uses self.enable_eir if available)
+        enable_dut : bool, optional
+            Enable Device Under Test mode after initialization (default: False)
+
+        Note
+        ----
+        If enable_dut is True, the device will enter DUT mode after basic setup.
+        This may disable normal Bluetooth operations and is intended for testing only.
         """
         print("=" * 70)
         print("Bluetooth Classic Application Initialization")
@@ -572,7 +644,10 @@ class BluetoothClassicApp:
         self.configure_br_edr()
 
         # Phase 3: Setup discoverability
-        self.setup_discoverability()
+        # Check if enable_eir is set via command-line flag
+        if enable_eir is None:
+            enable_eir = getattr(self, 'enable_eir', False)
+        self.setup_discoverability(enable_eir=enable_eir)
 
         # Phase 4: Enable scans
         scan_mode = SCAN_DISABLED
@@ -589,6 +664,15 @@ class BluetoothClassicApp:
         print("Initialization Complete!")
         print("=" * 70)
         self.print_status(discoverable, connectable)
+
+        # Phase 5: Enable DUT mode if requested
+        if enable_dut:
+            print("\n" + "=" * 70)
+            print("Enabling DUT Mode (as requested)")
+            print("=" * 70)
+            self.enable_dut_mode()
+            print("\nNOTE: Device is now in test mode. Normal operations may be unavailable.")
+            print("      Reset the controller to exit DUT mode.")
 
     def print_status(self, discoverable=True, connectable=True):
         """Print current device status.
@@ -648,6 +732,18 @@ Note:
         help='UART baud rate (default: 921600)'
     )
 
+    parser.add_argument(
+        '--enable-eir',
+        action='store_true',
+        help='Enable Extended Inquiry Response (WARNING: may fail in UART mode)'
+    )
+
+    parser.add_argument(
+        '--enable-dut',
+        action='store_true',
+        help='Enable Device Under Test mode after initialization (for testing only)'
+    )
+
     args = parser.parse_args()
 
     try:
@@ -659,8 +755,11 @@ Note:
             class_of_device=args.class_of_device
         )
 
+        # Store enable_eir flag for initialization
+        app.enable_eir = args.enable_eir
+
         # Run initialization sequence
-        app.initialize(discoverable=True, connectable=True)
+        app.initialize(discoverable=True, connectable=True, enable_dut=args.enable_dut)
 
         print("\nPress Ctrl+C to exit")
 
