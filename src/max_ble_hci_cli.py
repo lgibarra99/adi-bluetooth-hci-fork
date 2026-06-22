@@ -130,6 +130,14 @@ DEFAULT_CONN_INTERVAL = 0x6  # 7.5 ms
 DEFAULT_SUP_TIMEOUT = 0x64  # 1 s
 DEFAULT_CE_LEN = 0x0F10
 DEFAULT_CONN_LATENCY = 0
+DEFAULT_BT_CLASSIC_NAME = "granite_tester"
+DEFAULT_BT_CLASSIC_COD = 0x000100
+DEFAULT_BT_CLASSIC_PAGE_TIMEOUT = 0x6000
+BT_CLASSIC_GIAC_LAP = 0x9E8B33
+BT_CLASSIC_SCAN_DISABLED = 0x00
+BT_CLASSIC_SCAN_INQUIRY_AND_PAGE = 0x03
+ADI_VS_SET_NAME_EIR_CMD_ID = 0x04
+ADI_VS_SET_NAME_ONLY = 0x01
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -172,6 +180,46 @@ def _run_input_cmds(commands, terminal):
 
                 sys.exit(_err.code)
     return True
+
+
+def _bt_classic_vs_set_name_cmd(name: str) -> bytes:
+    name_bytes = name.encode("utf-8")
+    name_len = len(name_bytes)
+    if name_len > 248:
+        raise ValueError(f"Device name too long: {name_len} bytes (max 248)")
+
+    array_len = 3 + name_len
+    ceva_fmt_len = array_len + 1
+    params = [
+        ceva_fmt_len,
+        array_len,
+        ADI_VS_SET_NAME_EIR_CMD_ID,
+        ADI_VS_SET_NAME_ONLY,
+        name_len,
+        *name_bytes,
+    ]
+
+    return bytes([0x01, 0x80, 0xFC, len(params), *params])
+
+
+def _bt_classic_write_u24_cmd(opcode_lsb: int, opcode_msb: int, value: int) -> bytes:
+    return bytes(
+        [
+            0x01,
+            opcode_lsb,
+            opcode_msb,
+            0x03,
+            value & 0xFF,
+            (value >> 8) & 0xFF,
+            (value >> 16) & 0xFF,
+        ]
+    )
+
+
+def _bt_classic_write_u16_cmd(opcode_lsb: int, opcode_msb: int, value: int) -> bytes:
+    return bytes(
+        [0x01, opcode_lsb, opcode_msb, 0x02, value & 0xFF, (value >> 8) & 0xFF]
+    )
 
 
 def _init_cli():
@@ -811,6 +859,104 @@ Default: {hex(DEFAULT_CE_LEN)}""",
     #### RESET PARSER ####
     reset_parser = subparsers.add_parser("reset", help="Sends an HCI reset command")
     reset_parser.set_defaults(func=lambda _: print(hci.reset()), which="reset")
+
+    #### BT-APP PARSER ####
+    bt_app_parser = subparsers.add_parser(
+        "bt-app",
+        help="Initialize Bluetooth Classic for normal operation (discoverable/connectable)",
+        formatter_class=RawTextHelpFormatter
+    )
+    bt_app_parser.add_argument(
+        "--name",
+        default=None,
+        help="Device name. Omit to leave name unchanged."
+    )
+    bt_app_parser.add_argument(
+        "--scan",
+        choices=["on", "off"],
+        default=None,
+        help="Enable/disable scan mode. Omit to leave scan unchanged."
+    )
+    bt_app_parser.add_argument(
+        "--dut",
+        choices=["on", "off"],
+        default=None,
+        help="Enable/disable Bluetooth Classic DUT mode. Omit to leave DUT mode unchanged."
+    )
+
+    def bt_app_handler(args):
+        """Handle bt-app command - Initialize BR/EDR for normal operation"""
+        def _bt_classic_init_preamble(reset_controller: bool):
+            if reset_controller:
+                hci.reset()
+
+            hci.write_command_raw(bytes.fromhex("01011000"))  # Read Local Version (0x1001)
+            hci.write_command_raw(bytes.fromhex("01031000"))  # Read Local Features (0x1003)
+            hci.write_command_raw(bytes.fromhex("01021000"))  # Read Local Commands (0x1002)
+            hci.write_command_raw(bytes.fromhex("01051000"))  # Read Buffer Size (0x1005)
+            hci.write_command_raw(bytes.fromhex("01091000"))  # Read BD_ADDR (0x1009)
+
+            hci.write_command_raw(bytes.fromhex("01560c0101"))  # Enable SSP
+            hci.write_command_raw(
+                _bt_classic_write_u24_cmd(0x24, 0x0C, DEFAULT_BT_CLASSIC_COD)
+            )  # Set CoD to Computer
+            hci.write_command_raw(
+                _bt_classic_write_u16_cmd(0x18, 0x0C, DEFAULT_BT_CLASSIC_PAGE_TIMEOUT)
+            )  # Set Page Timeout
+
+            return hci.write_command_raw(
+                bytes(
+                    [
+                        0x01,
+                        0x3A,
+                        0x0C,
+                        0x04,
+                        0x01,
+                        BT_CLASSIC_GIAC_LAP & 0xFF,
+                        (BT_CLASSIC_GIAC_LAP >> 8) & 0xFF,
+                        (BT_CLASSIC_GIAC_LAP >> 16) & 0xFF,
+                    ]
+                )
+            )  # Set IAC LAP (GIAC)
+
+        result = None
+        if args.dut == "off":
+            result = hci.reset()
+            print("BT Classic DUT mode disabled.")
+            print(result)
+            return
+
+        explicit_action = (
+            args.name is not None or args.scan is not None or args.dut is not None
+        )
+        if not explicit_action or args.dut == "on":
+            result = _bt_classic_init_preamble(reset_controller=True)
+        elif args.name is not None or args.scan is not None:
+            result = _bt_classic_init_preamble(reset_controller=False)
+
+        if args.name is not None:
+            result = hci.write_command_raw(_bt_classic_vs_set_name_cmd(args.name))
+
+        if args.scan is not None:
+            if args.scan == "on":
+                scan_mode = BT_CLASSIC_SCAN_INQUIRY_AND_PAGE
+            else:
+                scan_mode = BT_CLASSIC_SCAN_DISABLED
+            result = hci.write_command_raw(bytes([0x01, 0x1A, 0x0C, 0x01, scan_mode]))
+
+        if args.dut == "on":
+            result = hci.write_command_raw(bytes.fromhex("01031800"))  # HCI_Enable_Device_Under_Test_Mode
+
+        scan_status = args.scan if args.scan is not None else "unchanged"
+        dut_status = args.dut if args.dut is not None else "unchanged"
+        name_status = args.name if args.name is not None else "unchanged"
+        print(
+            f"BT Classic initialized. Name: {name_status}, "
+            f"Scan: {scan_status}, DUT: {dut_status}"
+        )
+        print(result)
+
+    bt_app_parser.set_defaults(func=bt_app_handler, which="bt-app")
 
     #### TX TEST PARSER ####
     tx_test_parser = subparsers.add_parser(

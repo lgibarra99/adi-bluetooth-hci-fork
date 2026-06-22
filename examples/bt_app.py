@@ -37,14 +37,8 @@ Features:
     - Extended Inquiry Response (EIR) support
     - Connectable and/or discoverable modes
     - Device Under Test (DUT) mode for Bluetooth testing
-
-Known Limitations (Controller Firmware Bugs in UART Mode):
-    - Write Local Name (0x0C13) is DISABLED - data loss bug (~15 bytes lost)
-    - Write Inquiry Scan Activity (0x0C43) is DISABLED - no response sent
-    - Write Extended Inquiry Response (0x0C52) is DISABLED by default - data loss
-      bug (~23 bytes lost). Device name cannot be advertised in UART mode.
-    - Use --enable-eir flag to attempt EIR (will likely timeout)
-    - See HCI_Write_Local_Name_UART_Bug_Analysis.md for detailed analysis
+    - ADI Vendor-Specific HCI Command (0xFC80) 
+        * Operation 0x01: Set local name only
 """
 
 import sys
@@ -62,6 +56,7 @@ OGF_INFORMATIONAL = 0x04    # Informational parameters
 OGF_STATUS = 0x05           # Status parameters
 OGF_TESTING = 0x06          # Testing commands
 OGF_LE_CONTROLLER = 0x08    # LE Controller commands
+OGF_VENDOR_SPECIFIC = 0x3F  # Vendor-specific commands
 
 # Controller/Baseband OCF values (OGF=0x03)
 OCF_WRITE_SCAN_ENABLE = 0x001A          # 0x0C1A
@@ -84,6 +79,19 @@ OCF_READ_BD_ADDR = 0x0009               # 0x1009
 
 # Testing OCF values (OGF=0x06)
 OCF_ENABLE_DUT_MODE = 0x0003            # 0x1803
+
+# Vendor-Specific OCF values (OGF=0x3F)
+OCF_ADI_VS_HCI = 0x0080                 # 0xFC80 - ADI vendor-specific debug command
+
+# ADI VS HCI Command IDs (sub-commands for 0xFC80)
+ADI_CMD_ID_DUMMY = 0x00
+ADI_CMD_ID_HDS_EM = 0x01                # Exchange Memory access
+ADI_CMD_ID_D2D_TL_TEST = 0x02           # D2D transport layer test
+ADI_CMD_ID_HDS_REG = 0x03               # System register access
+ADI_CMD_ID_SET_NAME_EIR = 0x04          # Set device name & EIR
+
+# ADI VS HCI Set Name/EIR operations
+ADI_SET_NAME_ONLY = 0x01
 
 # Scan enable modes
 SCAN_DISABLED = 0x00
@@ -145,7 +153,7 @@ class BluetoothClassicApp:
             24-bit Class of Device value (default: 0x000100 = Computer)
         """
         print(f"Connecting to controller on {port} at {baud} baud...")
-        self.controller = BleHci(port, baud=baud, id_tag="BT-APP", flowcontrol=True)
+        self.controller = BleHci(port, baud=baud, id_tag="BT-APP", flowcontrol=True, stopbits=2)
         self.device_name = device_name or DEFAULT_DEVICE_NAME
         self.cod = class_of_device if class_of_device is not None else DEFAULT_CLASS_OF_DEVICE
         self.page_timeout = DEFAULT_PAGE_TIMEOUT
@@ -179,6 +187,7 @@ class BluetoothClassicApp:
             HCI Command Complete event
         """
         print("\n=== HCI_Reset ===")
+        print()  # Add empty line to ensure HCI command appears on its own line
         event = self.controller.reset()
         print(f"Reset response: {event}")
         time.sleep(0.1)
@@ -347,12 +356,11 @@ class BluetoothClassicApp:
         return event
 
     def write_local_name(self, name=None):
-        """Set local device name (DISABLED - see note).
+        """Set local device name.
 
-        **WARNING**: This command is DISABLED due to a controller firmware bug
-        in UART mode. The controller hangs waiting for "missing" bytes due to
-        ring buffer accounting errors. Use write_extended_inquiry_response()
-        to set the device name instead.
+        The standard local-name command is not used by this application. Use
+        write_extended_inquiry_response() or adi_vs_set_name() to set the device
+        name instead.
 
         Parameters
         ----------
@@ -365,10 +373,8 @@ class BluetoothClassicApp:
             Always raises - command is disabled
         """
         raise NotImplementedError(
-            "HCI_Write_Local_Name is DISABLED due to controller firmware bug in UART mode.\n"
-            "Symptom: Controller receives 237 bytes but expects 248, hangs indefinitely.\n"
-            "Workaround: Use write_extended_inquiry_response() to set device name via EIR.\n"
-            "See HCI_Write_Local_Name_UART_Bug_Analysis.md for details."
+            "HCI_Write_Local_Name is not used by this application.\n"
+            "Use write_extended_inquiry_response() or adi_vs_set_name() to set the device name."
         )
 
     def write_current_iac_lap(self, lap=GIAC_LAP):
@@ -401,11 +407,9 @@ class BluetoothClassicApp:
         return event
 
     def write_inquiry_scan_activity(self, interval=0x0800, window=0x0012):
-        """Write inquiry scan activity parameters (DISABLED - see note).
+        """Write inquiry scan activity parameters.
 
-        **WARNING**: This command is DISABLED due to a controller firmware bug
-        in UART mode. The controller receives the command but never sends a
-        response, causing timeout. Default scan parameters will be used.
+        This application uses the controller's default inquiry scan parameters.
 
         Parameters
         ----------
@@ -420,20 +424,12 @@ class BluetoothClassicApp:
             Always raises - command is disabled
         """
         raise NotImplementedError(
-            "HCI_Write_Inquiry_Scan_Activity is DISABLED due to controller firmware bug in UART mode.\n"
-            "Symptom: Controller receives command but never sends response, causing timeout.\n"
-            "Workaround: Use default scan parameters.\n"
-            "See HCI_Write_Local_Name_UART_Bug_Analysis.md for details."
+            "HCI_Write_Inquiry_Scan_Activity is not used by this application.\n"
+            "Default inquiry scan parameters will be used."
         )
 
     def write_extended_inquiry_response(self, eir_data=None, device_name=None):
         """Write Extended Inquiry Response (EIR) data.
-
-        **WARNING**: This command also suffers from the UART mode data loss bug.
-        Large payloads (241 bytes) lose ~23 bytes during UART reception, causing
-        the controller to hang. This command is DISABLED by default in bt_app.py.
-
-        Use --enable-eir flag to attempt (will likely timeout in UART mode).
 
         Parameters
         ----------
@@ -447,10 +443,6 @@ class BluetoothClassicApp:
         event
             HCI Command Complete event
 
-        Raises
-        ------
-        TimeoutError
-            In UART mode due to data loss bug
         """
         if device_name is None:
             device_name = self.device_name
@@ -478,6 +470,121 @@ class BluetoothClassicApp:
         event = self.controller.port.send_command(cmd, timeout=5.0)  # Longer timeout for 241-byte payload
         print(f"EIR response: {event}")
         return event
+
+    def adi_vs_set_name(self, name=None, operation=ADI_SET_NAME_ONLY):
+        """Set device name using ADI VS HCI command.
+
+        This command sets the device name directly through the vendor-specific
+        controller interface.
+
+        Parameters
+        ----------
+        name : str, optional
+            Device name (max 248 bytes, uses self.device_name if None)
+        operation : int, optional
+            Operation mode - ONLY 0x01 is currently supported:
+            - ADI_SET_NAME_ONLY (0x01): Set local name only
+
+        Returns
+        -------
+        event
+            HCI Command Complete event
+
+        Notes
+        -----
+        This is ADI VS HCI Command 0xFC80, sub-command 4.
+        See ADI_VS_HCI_Commands.md for protocol details.
+
+        IMPORTANT: Only operation 0x01 is supported by this application.
+        """
+        if name is None:
+            name = self.device_name
+
+        # Force operation to 0x01 - only this mode is supported
+        if operation != ADI_SET_NAME_ONLY:
+            print(f"⚠ Warning: Operation 0x{operation:02X} not supported, forcing to 0x01")
+            operation = ADI_SET_NAME_ONLY
+
+        op_names = {
+            ADI_SET_NAME_ONLY: "Set Name Only",
+        }
+
+        print(f"\n=== ADI VS {op_names.get(operation, 'Unknown')} ===")
+        print(f"Device name: {name}")
+        print(f"Operation: 0x{operation:02X} (only 0x01 supported)")
+
+        name_bytes = name.encode('utf-8')
+        name_len = len(name_bytes)
+
+        if name_len > 248:
+            raise ValueError(f"Device name too long: {name_len} bytes (max 248)")
+
+        # ADI VS HCI Command 0xFC80 format with CEVA wrapper:
+        # CEVA format: total_payload_len = ceva_fmt_len + 1
+        #              ceva_fmt_len = array_len + 1
+        # params[0]: ceva_fmt_len
+        # params[1]: array_len (number of actual command bytes)
+        # params[2]: Command ID (0x04 = Set Name/EIR)
+        # params[3]: Operation (0x01/0x02/0x03)
+        # params[4]: name_len
+        # params[5..n]: name data
+
+        array_len = 3 + name_len  # cmd_id + op + name_len + name_bytes
+        ceva_fmt_len = array_len + 1
+
+        params = [
+            ceva_fmt_len,             # CEVA format length
+            array_len,                # Array length
+            ADI_CMD_ID_SET_NAME_EIR,  # Command ID: 0x04
+            operation,                 # Operation: 0x01/0x02/0x03
+            name_len,                 # Name length
+        ] + list(name_bytes)          # Name data
+
+        cmd = CommandPacket(OGF_VENDOR_SPECIFIC, OCF_ADI_VS_HCI, params=params)
+
+        # Flush any pending data before sending the command
+        if hasattr(self.controller.port, 'serial_port'):
+            self.controller.port.serial_port.reset_input_buffer()
+
+        try:
+            # Send the command - VS commands respond immediately
+            # Use a short timeout because VS commands respond immediately
+            event = self.controller.port.send_command(cmd, timeout=1.0)
+            print(f"ADI VS response: {event}")
+
+            if hasattr(event, 'status'):
+                # Check for success - status could be an enum or integer
+                if str(event.status) == 'StatusCode.SUCCESS' or event.status == 0:
+                    print(f"✓ {op_names.get(operation, 'Operation')} completed successfully")
+                    self.device_name = name  # Update stored name on success
+                else:
+                    print(f"✗ Failed (status: {event.status})")
+            else:
+                # Check if we got event parameters with the status
+                if hasattr(event, 'evt_params') and len(event.evt_params) >= 4:
+                    # Status is typically at position 3 for VS commands
+                    status = event.evt_params[3] if len(event.evt_params) > 3 else event.evt_params[0]
+                    if status == 0:
+                        print(f"✓ {op_names.get(operation, 'Operation')} completed successfully")
+                        self.device_name = name
+                    else:
+                        print(f"✗ Failed (status: 0x{status:02x})")
+                else:
+                    print(f"✗ Failed (no status in response)")
+
+            return event
+
+        except TimeoutError as e:
+            # Report the timeout and leave subsequent commands with a clean input buffer
+            print(f"✗ Timeout waiting for VS command response")
+            print("  This usually means the controller firmware doesn't support this VS command.")
+
+            # Clear any pending data before subsequent commands
+            time.sleep(0.1)
+            if hasattr(self.controller.port, 'serial_port'):
+                self.controller.port.serial_port.reset_input_buffer()
+
+            raise e
 
     def write_scan_enable(self, mode):
         """Enable/disable inquiry and page scans.
@@ -590,7 +697,7 @@ class BluetoothClassicApp:
         device_name : str, optional
             Device name for EIR (uses self.device_name if None)
         enable_eir : bool, optional
-            Enable Extended Inquiry Response (default: False due to UART bug)
+            Enable Extended Inquiry Response (default: False)
         """
         print("\n" + "=" * 70)
         print("Setting Up Discoverability")
@@ -601,17 +708,23 @@ class BluetoothClassicApp:
         self.flush_serial()
 
         if enable_eir:
-            print("\nWARNING: EIR enabled - this may fail in UART mode due to data loss bug")
+            print("\nSetting device name using ADI VS HCI command...")
             try:
-                self.write_extended_inquiry_response(device_name=device_name)
+                # Use ADI VS HCI command to set local name
+                # Note: Only operation 0x01 is supported by this application
+                self.adi_vs_set_name(name=device_name, operation=ADI_SET_NAME_ONLY)
                 time.sleep(0.2)
             except Exception as e:
-                print(f"\nERROR: EIR command failed (expected in UART mode): {e}")
-                print("Continuing without EIR - device name will not be advertised")
+                print(f"\nERROR: ADI VS HCI command failed: {e}")
+                print("Device name will not be set.")
+                print("This usually means the controller firmware needs to be updated with VS command support.")
+
+                # Flush serial buffers in case a delayed response arrives
+                time.sleep(0.5)
+                self.flush_serial()
         else:
             print("\nNOTE: EIR disabled - device name will not be advertised via Extended Inquiry Response")
-            print("      (EIR disabled by default due to UART mode data loss bug)")
-            print("      Use --enable-eir flag to attempt EIR (may timeout)")
+            print("      Use --enable-eir flag to set device name via ADI VS HCI command")
 
     def initialize(self, discoverable=True, connectable=True, enable_eir=None, enable_dut=False):
         """Run complete initialization sequence for Bluetooth Classic device.
@@ -735,7 +848,7 @@ Note:
     parser.add_argument(
         '--enable-eir',
         action='store_true',
-        help='Enable Extended Inquiry Response (WARNING: may fail in UART mode)'
+        help='Enable device name advertising via ADI VS HCI command'
     )
 
     parser.add_argument(
