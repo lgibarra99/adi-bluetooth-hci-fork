@@ -1237,6 +1237,82 @@ Default: {hex(DEFAULT_CE_LEN)}""",
         )
     )
 
+    #### RX TEST BT VS PARSER ####
+    rx_test_bt_vs_parser = subparsers.add_parser(
+        "rxtestbtvs",
+        aliases=["rxbtvs"],
+        help="Execute the Bluetooth Classic vendor-specific receiver test",
+        formatter_class=RawTextHelpFormatter,
+    )
+    rx_test_bt_vs_parser.add_argument(
+        "-c",
+        "--channel",
+        type=int,
+        dest="channel",
+        default=0,
+        help="Rx test channel, 0-79. Default: 0",
+    )
+    rx_test_bt_vs_parser.add_argument(
+        "--pt",
+        dest="packet_type",
+        type=int,
+        default=1,
+        help="""Rx Test packet type
+        0: DM1
+        1: DH1
+        2: DM3
+        3: DH3
+        4: DM5
+        5: DH5
+        6: 2DH1
+        7: 3DH1
+        8: 2DH3
+        9: 3DH3
+        10: 2DH5
+        11: 3DH5
+        12: HV1
+        13: HV2
+        14: HV3
+        15: EV3
+        16: EV4
+        17: EV5
+        18: 2EV3
+        19: 3EV3
+        20: 2EV5
+        21: 3EV5
+        Default: DH1""",
+    )
+    rx_test_bt_vs_parser.add_argument(
+        "-i",
+        "--infinite",
+        dest="inf_test",
+        default=False,
+        action="store_true",
+        help="Infinite test mode. Default: False",
+    )
+    rx_test_bt_vs_parser.set_defaults(
+        func=lambda args: print(
+            hci.rx_test_bt_vs(
+                channel=args.channel,
+                packet_type=args.packet_type,
+                inf_test=args.inf_test,
+            )
+        )
+    )
+
+    #### TEST END BT VS PARSER ####
+    test_end_bt_vs_parser = subparsers.add_parser(
+        "testendbtvs",
+        aliases=["endbtvs", "stopbtvs"],
+        help="End the Bluetooth Classic test and get packet count",
+        formatter_class=RawTextHelpFormatter,
+    )
+    test_end_bt_vs_parser.set_defaults(
+        func=lambda args: (
+            lambda result: print(f"Test ended. Packets: {result[0]}, Status: {result[1]}")
+        )(hci.test_end_bt_vs())
+    )
+
     #### RXTEST PARSER ####
     rx_test_parser = subparsers.add_parser(
         "rx-test",
