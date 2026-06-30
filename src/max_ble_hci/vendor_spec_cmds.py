@@ -484,6 +484,106 @@ class VendorSpecificCmds:
         params.extend([payload, packet_type, tx_power, inf_test])
         return self.send_vs_command(OCF.VENDOR_SPEC.BT_TX_TEST, params=params)
 
+    def rx_test_bt_vs(
+        self,
+        channel: int = 0,
+        packet_type: Union[BtTxPacketType, int] = BtTxPacketType.PKT_DM1,
+        inf_test: bool = False,
+    ) -> StatusCode:
+        """Start a vendor-specific Bluetooth Classic receiver test.
+
+        Sends a vendor-specific command to the DUT, telling it to
+        start a Bluetooth Classic DTM receiver test in accordance
+        with the given parameters.
+
+        Parameters
+        ----------
+        channel : int
+            RX channel, range: 0 to 79.
+        packet_type : Union[BtTxPacketType, int]
+            The type of packet to receive.
+        inf_test: bool
+            Infinite RX test mode.
+
+        Returns
+        -------
+        StatusCode
+            The return packet status code.
+
+        Raises
+        ------
+        ValueError
+            If `channel` is greater than 79 or less than 0.
+        ValueError
+            If `packet_type` is greater than 21.
+
+        """
+        if not 0 <= channel < 80:
+            raise ValueError(
+                f"Channel out of bandwidth ({channel}), must be in range [0, 80)."
+            )
+
+        if not isinstance(packet_type, BtTxPacketType):
+            if packet_type > 21:
+                raise ValueError(
+                    f"Packet type out of range ({packet_type}), must be 21 or less."
+                )
+
+        print("Parsing BT_RX_TEST")
+
+        packet_type = (
+            packet_type.value
+            if isinstance(packet_type, BtTxPacketType)
+            else packet_type
+        )
+
+        params = [channel, packet_type, 0x01 if inf_test else 0x00]
+        return self.send_vs_command(OCF.VENDOR_SPEC.BT_RX_TEST, params=params)
+
+    def test_end_bt_vs(self) -> Tuple[int, StatusCode]:
+        """End a Bluetooth Classic test and get packet count.
+
+        Sends a vendor-specific command to the DUT to stop any
+        running BR/EDR test (TX or RX) and returns the packet count.
+
+        Returns
+        -------
+        Tuple[int, StatusCode]
+            A tuple containing:
+            - The number of packets transmitted/received during the test
+            - The status code of the command
+
+        """
+        print("Parsing BT_TEST_END")
+
+        # Send command with no parameters
+        cmd = bytes([
+            0x01,           # HCI Command
+            0x72, 0xFC,     # Opcode 0xFC72
+            0x00            # No parameters
+        ])
+
+        response = self.write_command_raw(cmd)
+
+        # Parse response
+        # Expected format: 04 0E 06 01 72 FC SS PP PP
+        # Where:
+        #   04 = HCI Event
+        #   0E = Command Complete
+        #   06 = Parameter length
+        #   01 = Num HCI command packets
+        #   72 FC = Opcode echo
+        #   SS = Status
+        #   PP PP = Packet count (little-endian)
+
+        if len(response) >= 9:
+            status = StatusCode(response[6])
+            import struct
+            packet_count = struct.unpack('<H', response[7:9])[0]
+            return packet_count, status
+        else:
+            return 0, StatusCode.UNKNOWN_ERROR
+
     def rx_test_vs(
         self,
         channel: int = 0,
