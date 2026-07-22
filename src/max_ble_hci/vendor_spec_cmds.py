@@ -74,6 +74,7 @@ from .data_params import (
     PoolStats,
     ScanPktStats,
     TestReport,
+    TestStats,
 )
 from .hci_packets import CommandPacket, EventPacket, byte_length
 from .packet_codes import StatusCode
@@ -564,7 +565,7 @@ class VendorSpecificCmds:
             0x00            # No parameters
         ])
 
-        response = self.write_command_raw(cmd)
+        evt = self.write_command_raw(cmd)
 
         # Parse response
         # Expected format: 04 0E 06 01 72 FC SS PP PP
@@ -576,14 +577,10 @@ class VendorSpecificCmds:
         #   72 FC = Opcode echo
         #   SS = Status
         #   PP PP = Packet count (little-endian)
+        
+        packet_count = evt.get_return_params(param_lens=[2])
 
-        if len(response) >= 9:
-            status = StatusCode(response[6])
-            import struct
-            packet_count = struct.unpack('<H', response[7:9])[0]
-            return packet_count, status
-        else:
-            return 0, StatusCode.UNKNOWN_ERROR
+        return packet_count, evt.status
 
     def rx_test_vs(
         self,
@@ -639,6 +636,36 @@ class VendorSpecificCmds:
         params = [channel, phy, modulation_idx]
         params.extend(to_le_nbyte_list(num_packets, 2))
         return self.send_vs_command(OCF.VENDOR_SPEC.RX_TEST, params=params)
+    
+    def end_ex_test(self) -> Tuple[TestStats, StatusCode]:
+        """End a Bluetooth LE test and get extended metrics.
+
+        Sends a vendor-specific command to the DUT to stop any
+        running BLE test (TX or RX) and returns metric data from test
+
+        Returns
+        -------
+        Tuple[Metrics, StatusCode]
+            A tuple containing:
+            - A structure that holds the number of packets, 
+            - The status code of the command
+
+        """
+        evt = self.send_vs_command(OCF.VENDOR_SPEC.TEST_ENDEX, return_evt=True)
+        data = evt.get_return_params(param_lens=[2, 1, 1, 1])
+
+        rssi_min = data[1] if data[1] < 128 else data[1] - 256
+        rssi_max = data[2] if data[2] < 128 else data[2] - 256
+        rssi_avg = data[3] if data[3] < 128 else data[3] - 256
+
+        metrics = TestStats(
+            nb_packets=data[0],
+            rssi_min=rssi_min,
+            rssi_max=rssi_max,
+            rssi_avg=rssi_avg,
+        )
+
+        return metrics, evt.status
 
     def tx_fgen_vs(
         self,

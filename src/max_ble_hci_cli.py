@@ -1463,11 +1463,30 @@ Default: {hex(DEFAULT_CE_LEN)}""",
     )
 
     def _end_test(_args):
-        rx_packets, status = hci.end_test()
-        print(f"RX Received: {rx_packets}")
+        nb_packets, status = hci.end_test()
+        print(f"TX Transmitted/RX Received: {nb_packets}")
         print(status)
 
     endtest_parser.set_defaults(func=_end_test)
+
+    #### END EXTENDED VS PARSER ####
+    endex_test_parser = subparsers.add_parser(
+        "endex-test",
+        aliases=["endex"],
+        help="End the TX/RX test, print an extended metrics report from test",
+        formatter_class=RawTextHelpFormatter,
+    )
+
+    def _endex_test_vs(_args):
+        metrics, status = hci.end_ex_test()
+        print(f"TX Transmitted/RX Received: {metrics.nb_packets}")
+        print(f"RX RSSI Minimum: {metrics.rssi_min}")
+        print(f"RX RSSI Maximum: {metrics.rssi_max}")
+        print(f"RX RSSI Average: {metrics.rssi_avg}")
+        print(status)
+
+
+    endex_test_parser.set_defaults(func=_endex_test_vs)
 
     #### RESET TEST STATS PARSER ####
     reset_test_stats_parser = subparsers.add_parser(

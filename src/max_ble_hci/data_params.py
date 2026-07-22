@@ -860,3 +860,38 @@ class PoolStats:
             print_lns.append(f"{key}:  {val}")
 
         return "\n".join(print_lns)
+
+@dataclass
+class TestStats:
+    """Generic metrics container for single DTM."""
+
+    # pylint-disable=too-many-positional-arguments
+    def __init__(
+        self,
+        nb_packets: int = 0,
+        rssi_min: int = 127,
+        rssi_max: int = -128,
+        rssi_avg: int = 127,
+    ) -> None:
+        self.nb_packets = nb_packets
+        """Number of packets received/transmitted (depending on test)."""
+
+        self.rssi_min = rssi_min
+        """Number of packets received with a CRC error."""
+
+        self.rssi_max = rssi_max
+        """Number of RX timeouts."""
+
+        self.rssi_avg = rssi_avg
+        """Number of correctly transmitted packets."""
+
+    # pylint-enable=too-many-positional-arguments
+
+    def __repr__(self) -> str:
+        print_lns = []
+        for key, val in self.__dict__.items():
+            if val is None:
+                continue
+            print_lns.append(f"{key}:  {val}")
+
+        return "\n".join(print_lns)

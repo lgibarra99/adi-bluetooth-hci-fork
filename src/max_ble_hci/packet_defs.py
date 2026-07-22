@@ -748,6 +748,12 @@ class VendorSpecificOCF(Enum):
     BT_TEST_END = 0x72
     """Bluetooth Classic test end"""
 
+    SET_PERCOUNT_MODE = 0x79
+    """Set percount mode command"""
+
+    TEST_ENDEX = 0x85
+    """LE VS test end with more metrics recorded"""
+
     HDS_EM = 0xFC80
     """HDS EM command."""
 

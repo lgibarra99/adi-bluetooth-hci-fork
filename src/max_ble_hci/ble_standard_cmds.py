@@ -715,7 +715,7 @@ class BleStandardCmds:
             The return packet status code.
         int
             The number of packets received correctly during the test. If
-            ending a TX test, this value will be 0.
+            ending a TX test, this value will be the number of packets transmitted.
 
         """
         evt = self.send_le_controller_command(
