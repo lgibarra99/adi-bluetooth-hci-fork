@@ -287,6 +287,8 @@ class CteType(Enum):
     """AoD Constant Tone Extension with 1 us slots"""
     AOD_2_US = 2
     """AoD Constant Tone Extension with 2 us slots"""
+    CTE_NO_TYPE = 0xFF
+    """CTE no type"""
 
 
 class BtTxPacketType(Enum):
@@ -357,3 +359,18 @@ class BtTxPacketType(Enum):
 
     PKT_3EV5 = 0x15
     """3EV5 packet type """
+
+class PerCountMode(Enum):
+    """DTM Per-count mode"""
+
+    CORRECT = 0x0
+    """Correctly received packets (no error)"""
+
+    ACCESS_ADDRESS_DETECTION_ERROR = 0x1
+    """Access Address detection error only"""
+
+    CRC_ERROR = 0x2
+    """CRC Error detection only"""
+
+    RECEPTION_ERROR = 0x3
+    """Reception Error detected"""

@@ -593,7 +593,7 @@ class BleStandardCmds:
         packet_len: int = 0,
         mode: Union[TxTestMode, int] = TxTestMode.ENHANCED,
         cte_len: int = 0,
-        cte_type: Union[CteType, int] = CteType.AOA,
+        cte_type: Union[CteType, int] = CteType.CTE_NO_TYPE,
         power: int = 0,
     ) -> StatusCode:
         """Start a transmitter test.
@@ -617,7 +617,7 @@ class BleStandardCmds:
             CTE length measureed in units of 8 micro-seconds.
         cte_type: Union[CteType, int]
             A CTE type for Angle of Arrival (AoA) selection.
-        switch_pattern_len: Union[SwitchPatternLen, int]
+        switch_pattern_len: int
             The number of transmitter antennas to be used
         switch_pattern: int
             The ID of the transmitter antenna

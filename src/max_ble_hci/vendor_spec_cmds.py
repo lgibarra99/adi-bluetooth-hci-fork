@@ -65,6 +65,7 @@ from .constants import (
     PatternOption,
     PubKeyValidateMode,
     BtTxPacketType,
+    PerCountMode,
 )
 from .data_params import (
     AdvPktStats,
@@ -491,6 +492,7 @@ class VendorSpecificCmds:
         channel: int = 0,
         packet_type: Union[BtTxPacketType, int] = BtTxPacketType.PKT_DM1,
         inf_test: bool = False,
+        percount_mode: Union[PerCountMode, int] = PerCountMode.CORRECT,
     ) -> StatusCode:
         """Start a vendor-specific Bluetooth Classic receiver test.
 
@@ -506,6 +508,8 @@ class VendorSpecificCmds:
             The type of packet to receive.
         inf_test: bool
             Infinite RX test mode.
+        percount_mode: Union[PerCountMode, int]
+            Percount mode
 
         Returns
         -------
@@ -539,10 +543,13 @@ class VendorSpecificCmds:
             else packet_type
         )
 
-        params = [channel, packet_type, 0x01 if inf_test else 0x00]
+        if isinstance(percount_mode, PerCountMode):
+            percount_mode = percount_mode.value
+
+        params = [channel, packet_type, 0x01 if inf_test else 0x00, percount_mode]
         return self.send_vs_command(OCF.VENDOR_SPEC.BT_RX_TEST, params=params)
 
-    def test_end_bt_vs(self) -> Tuple[int, StatusCode]:
+    def test_end_bt_vs(self) -> Tuple[TestStats, StatusCode]:
         """End a Bluetooth Classic test and get packet count.
 
         Sends a vendor-specific command to the DUT to stop any
@@ -550,7 +557,7 @@ class VendorSpecificCmds:
 
         Returns
         -------
-        Tuple[int, StatusCode]
+        Tuple[TestStats, StatusCode]
             A tuple containing:
             - The number of packets transmitted/received during the test
             - The status code of the command
@@ -558,29 +565,21 @@ class VendorSpecificCmds:
         """
         print("Parsing BT_TEST_END")
 
-        # Send command with no parameters
-        cmd = bytes([
-            0x01,           # HCI Command
-            0x72, 0xFC,     # Opcode 0xFC72
-            0x00            # No parameters
-        ])
+        evt = self.send_vs_command(OCF.VENDOR_SPEC.BT_TEST_END, return_evt=True)
+        data = evt.get_return_params(param_lens=[2, 1, 1, 1])
 
-        evt = self.write_command_raw(cmd)
+        rssi_min = data[1] if data[1] < 128 else data[1] - 256
+        rssi_max = data[2] if data[2] < 128 else data[2] - 256
+        rssi_avg = data[3] if data[3] < 128 else data[3] - 256
 
-        # Parse response
-        # Expected format: 04 0E 06 01 72 FC SS PP PP
-        # Where:
-        #   04 = HCI Event
-        #   0E = Command Complete
-        #   06 = Parameter length
-        #   01 = Num HCI command packets
-        #   72 FC = Opcode echo
-        #   SS = Status
-        #   PP PP = Packet count (little-endian)
-        
-        packet_count = evt.get_return_params(param_lens=[2])
+        metrics = TestStats(
+            nb_packets=data[0],
+            rssi_min=rssi_min,
+            rssi_max=rssi_max,
+            rssi_avg=rssi_avg,
+        )
 
-        return packet_count, evt.status
+        return metrics, evt.status
 
     def rx_test_vs(
         self,
@@ -666,6 +665,60 @@ class VendorSpecificCmds:
         )
 
         return metrics, evt.status
+    
+    def infinite_txrx_vs(self, toggle: int = 0) -> StatusCode:
+        """Enables/Disables Infinite TX/RX.
+
+        Sends a vendor-specific command to the DUT, telling it to
+        enable/disable infinite tx packet/infinite rx window
+
+        Parameters
+        ----------
+        toggle : int
+            1 to enable infinite tx/rx, 0 to disable infinite tx/rx.
+
+        Returns
+        -------
+        StatusCode
+            The return packet status code.
+
+        Raises
+        ------
+        ValueError
+            If `toggle` is not a valid value
+
+        """
+
+        if not 0 <= toggle <= 1:
+            raise ValueError(f"Toggle is an invalid option({toggle}), must be 1 (enable) or 0 (disable).")
+
+        return self.send_vs_command(OCF.VENDOR_SPEC.SET_INFINITE_TXRX, params=toggle)
+    
+    def percount_mode_vs(
+        self, 
+        mode: Union[PerCountMode, int] = PerCountMode.CORRECT
+    ) -> StatusCode:
+        """Sets the per-count mode during a Direct RX Test.
+
+        Sends a vendor-specific command to the DUT, telling it to
+        set the per-count mode during a Direct RX Test
+
+        Parameters
+        ----------
+        mode: Union[PerCountMode, int]
+            The mode selection.
+
+        Returns
+        -------
+        StatusCode
+            The return packet status code.
+
+        """
+
+        if isinstance(mode, PerCountMode):
+            mode = mode.value
+
+        return self.send_vs_command(OCF.VENDOR_SPEC.SET_PERCOUNT_MODE, params=mode)
 
     def tx_fgen_vs(
         self,

@@ -748,6 +748,9 @@ class VendorSpecificOCF(Enum):
     BT_TEST_END = 0x72
     """Bluetooth Classic test end"""
 
+    SET_INFINITE_TXRX = 0x77
+    """Set infinite test command"""
+
     SET_PERCOUNT_MODE = 0x79
     """Set percount mode command"""
 

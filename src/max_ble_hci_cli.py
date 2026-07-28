@@ -1032,12 +1032,13 @@ Default: {hex(DEFAULT_CE_LEN)}""",
         "-ct",
         "--cte-type",
         type=int,
-        default=0,
+        default=255,
         help="""CTE length
         0: AOA
         1: AOA with 1 us slots
         2: AOA with 2 us slots
-        Default: AOA""",
+        255: No CTE type
+        Default: No CTE type""",
     )
     tx_test_parser.add_argument(
         "--power",
@@ -1290,12 +1291,26 @@ Default: {hex(DEFAULT_CE_LEN)}""",
         action="store_true",
         help="Infinite test mode. Default: False",
     )
+    rx_test_bt_vs_parser.add_argument(
+        "-pcm",
+        "--percount-mode",
+        dest="percount_mode",
+        type=int,
+        default=0,
+        help="""Percount mode.
+         0: Number of correctly received packets (no error)
+         1: Number of Access Address detection error only 
+         2: Number of CRC Error detection only
+         3: Reception Error detected
+         Default: 0""",
+    )
     rx_test_bt_vs_parser.set_defaults(
         func=lambda args: print(
             hci.rx_test_bt_vs(
                 channel=args.channel,
                 packet_type=args.packet_type,
                 inf_test=args.inf_test,
+                percount_mode=args.percount_mode
             )
         )
     )
@@ -1307,11 +1322,16 @@ Default: {hex(DEFAULT_CE_LEN)}""",
         help="End the Bluetooth Classic test and get packet count",
         formatter_class=RawTextHelpFormatter,
     )
-    test_end_bt_vs_parser.set_defaults(
-        func=lambda args: (
-            lambda result: print(f"Test ended. Packets: {result[0]}, Status: {result[1]}")
-        )(hci.test_end_bt_vs())
-    )
+
+    def _bt_end_test_vs(_args):
+        metrics, status = hci.test_end_bt_vs()
+        print(f"TX Transmitted/RX Received: {metrics.nb_packets}")
+        #print(f"RX RSSI Minimum: {metrics.rssi_min} dBm")
+        #print(f"RX RSSI Maximum: {metrics.rssi_max} dBm")
+        #print(f"RX RSSI Average: {metrics.rssi_avg} dBm")
+        print(status)
+    
+    test_end_bt_vs_parser.set_defaults(func=_bt_end_test_vs)
 
     #### RXTEST PARSER ####
     rx_test_parser = subparsers.add_parser(
@@ -1480,13 +1500,52 @@ Default: {hex(DEFAULT_CE_LEN)}""",
     def _endex_test_vs(_args):
         metrics, status = hci.end_ex_test()
         print(f"TX Transmitted/RX Received: {metrics.nb_packets}")
-        print(f"RX RSSI Minimum: {metrics.rssi_min}")
-        print(f"RX RSSI Maximum: {metrics.rssi_max}")
-        print(f"RX RSSI Average: {metrics.rssi_avg}")
+        print(f"RX RSSI Minimum: {metrics.rssi_min} dBm")
+        print(f"RX RSSI Maximum: {metrics.rssi_max} dBm")
+        print(f"RX RSSI Average: {metrics.rssi_avg} dBm")
         print(status)
 
 
     endex_test_parser.set_defaults(func=_endex_test_vs)
+
+    #### INFINITE TX/RX PARSER ####
+    infinite_txrx_parser = subparsers.add_parser(
+        "infinite-txrx",
+        aliases=["inftxrx"],
+        help="Set infinite tx/rx on DUT",
+        formatter_class=RawTextHelpFormatter,
+    )
+    infinite_txrx_parser.add_argument(
+        "toggle", type=int, help="Enable or disable infinite tx/rx. Default: 0 (disable)"
+    )
+
+    infinite_txrx_parser.set_defaults(
+        func=lambda args: print(hci.infinite_txrx_vs(args.toggle)),
+    )
+
+    #### PERCOUNT_MODE PARSER ####
+    set_percount_mode_parser = subparsers.add_parser(
+        "set-percount-mode",
+        aliases=["percount-mode"],
+        help="Set percount mode on DUT",
+        formatter_class=RawTextHelpFormatter,
+    )
+
+    set_percount_mode_parser.add_argument(
+        "mode",
+        type=int,
+        default=0,
+        help="""Percount mode.
+         0: Number of correctly received packets (no error)
+         1: Number of Access Address detection error only 
+         2: Number of CRC Error detection only
+         3: Reception Error detected
+         Default: 0""",
+    )
+
+    set_percount_mode_parser.set_defaults(
+        func=lambda args: print(hci.percount_mode_vs(args.mode)),
+    )
 
     #### RESET TEST STATS PARSER ####
     reset_test_stats_parser = subparsers.add_parser(
