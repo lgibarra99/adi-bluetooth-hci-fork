@@ -757,9 +757,6 @@ class VendorSpecificOCF(Enum):
     TEST_ENDEX = 0x85
     """LE VS test end with more metrics recorded"""
 
-    HDS_EM = 0xFC80
-    """HDS EM command."""
-
 
 @dataclass
 class OCF:

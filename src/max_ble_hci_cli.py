@@ -1836,6 +1836,7 @@ Default: {hex(DEFAULT_CE_LEN)}""",
     )
     exit_parser.set_defaults(func=lambda _: sys.exit(EXIT_FUNC_MAGIC), which="exit")
 
+    #### LS PARSER ####
     ls_parser = subparsers.add_parser(
         "ls",
         help="List directory",
@@ -1846,6 +1847,8 @@ Default: {hex(DEFAULT_CE_LEN)}""",
     ls_parser.set_defaults(
         func=lambda args: [print(x) for x in os.listdir(args.ls_dir)]
     )
+
+    #### CD PARSER ####
     cd_parser = subparsers.add_parser(
         "cd",
         help="change working directory",
@@ -1854,6 +1857,7 @@ Default: {hex(DEFAULT_CE_LEN)}""",
     cd_parser.add_argument("dir")
     cd_parser.set_defaults(func=lambda args: os.chdir(args.dir))
 
+    #### PWD PARSER ####
     pwd_parser = subparsers.add_parser(
         "pwd",
         help="print working directory",
@@ -1861,7 +1865,7 @@ Default: {hex(DEFAULT_CE_LEN)}""",
     )
     pwd_parser.set_defaults(func=lambda args: print(os.getcwd()))
 
-    # Create the 'make' subparser
+    #### MAKE PARSER ####
     make_parser = subparsers.add_parser(
         "make",
         help="Run make",
@@ -1879,122 +1883,6 @@ Default: {hex(DEFAULT_CE_LEN)}""",
         func=lambda args: os.system(f"make -j {args.jobs} -C {args.directory}")
     )
     
-    #### HDS-EM PARSER ####
-    hds_em_parser = subparsers.add_parser(
-        "hds-em", 
-        help="HUDSON EM command", 
-        formatter_class=RawTextHelpFormatter
-    )
-    
-    hds_em_parser.add_argument(
-        "addr",
-        type=_hex_int,
-        help="The address to read/write from/to in HEX format: XXXX",
-    )
-    
-    hds_em_parser.add_argument(
-        "-w",
-        "--write",
-        action="store_true",
-        default=False,
-        help="Write operation, Default: False",
-    )
-    
-    hds_em_parser.add_argument(
-        "--bits",
-        type=int,
-        default=8,
-        help="read/write operation bits, 8, 16, 32. Default: 8",
-    )
-    
-    hds_em_parser.add_argument(
-        "--data",
-        type=_hex_int,
-        help="data to write in bytes (HEX, LSB first, little-endian): XX or XXXX ...",
-    )
-
-    def _hds_em_rd(args):
-        cmd_str = utils.build_hds_em_rd_cmd_str(args.addr, args.bits)   # generate the HCI command string
-        ret = hci.write_command_raw(bytes.fromhex(cmd_str))
-        res = utils.parse_hds_em_rd_cmd_res(ret.evt_params, args.bits)  # parse the response
-        data_str = ' '.join([f'{byte:02X}' for byte in res['data']])    # get the data string
-        logger.info(f'Reading from address 0x{args.addr:04X} with {args.bits} bits: {data_str}')
-    
-    def _hds_em_func(args):
-        size = args.bits // 4
-        if args.write:
-            _hds_em_rd(args)    # read the data from the address first
-            
-            # write
-            print(f"Write 0x{args.data} to address 0x{args.addr:04X} with {args.bits} bits")
-            cmd_str = utils.build_hds_em_wr_cmd_str(args.addr, args.bits, args.data)
-            ret = hci.write_command_raw(bytes.fromhex(cmd_str))
-            
-            # read back to verify
-            _hds_em_rd(args)
-        else:   # read
-            _hds_em_rd(args)
-    
-    hds_em_parser.set_defaults(func=_hds_em_func)
-
-    #### HDS-REG PARSER ####
-    hds_reg_parser = subparsers.add_parser(
-        "hds-reg", 
-        help="HUDSON REG command", 
-        formatter_class=RawTextHelpFormatter
-    )
-    
-    hds_reg_parser.add_argument(
-        "addr",
-        type=_hex_int,
-        help="The register address to read/write from/to in HEX format: HHXXXXLL",
-    )
-    
-    hds_reg_parser.add_argument(
-        "-w",
-        "--write",
-        action="store_true",
-        default=False,
-        help="Write operation, Default: False",
-    )
-    
-    hds_reg_parser.add_argument(
-        "--bits",
-        type=int,
-        default=32,
-        help="read/write operation bits, 8, 16, 32. Default: 32",
-    )
-    
-    hds_reg_parser.add_argument(
-        "--data",
-        type=_hex_int,
-        help="data to write in bytes (HEX, LSB first, little-endian): XX, XXXX, or XXXXXXXX",
-    )
-
-    def _hds_reg_rd(args):
-        cmd_str = utils.build_hds_reg_rd_cmd_str(args.addr, args.bits)   # generate the HCI command string
-        ret = hci.write_command_raw(bytes.fromhex(cmd_str))
-        res = utils.parse_hds_reg_rd_cmd_res(ret.evt_params, args.bits)  # parse the response
-        data_str = ' '.join([f'{byte:02X}' for byte in res['data']])     # get the data string
-        logger.info(f'Reading from address 0x{args.addr:04X} with {args.bits} bits: {data_str} (little-endian)')
-    
-    def _hds_reg_func(args):
-        size = args.bits // 4
-        if args.write:
-            _hds_reg_rd(args)    # read the data from the address first
-            
-            # write
-            print(f"Write 0x{args.data:08X} to address 0x{args.addr:04X} with {args.bits} bits")
-            cmd_str = utils.build_hds_reg_wr_cmd_str(args.addr, args.bits, args.data)
-            ret = hci.write_command_raw(bytes.fromhex(cmd_str))
-            
-            # read back to verify
-            _hds_reg_rd(args)
-        else:   # read
-            _hds_reg_rd(args)
-    
-    hds_reg_parser.set_defaults(func=_hds_reg_func)
-    
     def _script_runner(script_path):
         print(script_path)
         with open(script_path, "r", encoding="utf-8") as script:
@@ -2004,17 +1892,20 @@ Default: {hex(DEFAULT_CE_LEN)}""",
             commands = [command.strip() for command in commands if command != ""]
             _run_input_cmds(commands, terminal)
 
-    run_parser = subparsers.add_parser(
+    #### SHELL PARSER ####
+    shell_parser = subparsers.add_parser(
         "shell",
         help="run command via os shell",
         formatter_class=RawTextHelpFormatter,
     )
-    run_parser.add_argument("shellargs", nargs="+")
-    run_parser.set_defaults(func=lambda args: os.system(" ".join(args.shellargs)))
+    shell_parser.add_argument("shellargs", nargs="+")
+    shell_parser.set_defaults(func=lambda args: os.system(" ".join(args.shellargs)))
 
+    #### FLUSH PARSER ####
     flush_parser = subparsers.add_parser("flush", help="Flush serial port")
     flush_parser.set_defaults(func=lambda _: hci.port.flush())
 
+    #### RUN PARSER ####
     run_parser = subparsers.add_parser(
         "run",
         help="run command via os",
