@@ -52,6 +52,7 @@
 """
 Module contains definitions for ADI vendor-specific HCI commands.
 """
+
 # pylint: disable=too-many-lines, too-many-arguments, too-many-public-methods
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -631,7 +632,7 @@ class VendorSpecificCmds:
         params = [channel, phy, modulation_idx]
         params.extend(to_le_nbyte_list(num_packets, 2))
         return self.send_vs_command(OCF.VENDOR_SPEC.RX_TEST, params=params)
-    
+
     def end_ex_test(self) -> Tuple[TestStats, StatusCode]:
         """End a Bluetooth LE test and get extended metrics.
 
@@ -642,7 +643,7 @@ class VendorSpecificCmds:
         -------
         Tuple[Metrics, StatusCode]
             A tuple containing:
-            - A structure that holds the number of packets, 
+            - A structure that holds the number of packets,
             - The status code of the command
 
         """
@@ -661,7 +662,7 @@ class VendorSpecificCmds:
         )
 
         return metrics, evt.status
-    
+
     def infinite_txrx_vs(self, toggle: int = 0) -> StatusCode:
         """Enables/Disables Infinite TX/RX.
 
@@ -686,13 +687,14 @@ class VendorSpecificCmds:
         """
 
         if not 0 <= toggle <= 1:
-            raise ValueError(f"Toggle is an invalid option({toggle}), must be 1 (enable) or 0 (disable).")
+            raise ValueError(
+                f"Toggle is an invalid option({toggle}), must be 1 (enable) or 0 (disable)."
+            )
 
         return self.send_vs_command(OCF.VENDOR_SPEC.SET_INFINITE_TXRX, params=toggle)
-    
+
     def percount_mode_vs(
-        self, 
-        mode: Union[PerCountMode, int] = PerCountMode.CORRECT
+        self, mode: Union[PerCountMode, int] = PerCountMode.CORRECT
     ) -> StatusCode:
         """Sets the per-count mode during a Direct RX Test.
 
@@ -2127,4 +2129,3 @@ class VendorSpecificCmds:
             The return packet status code.
         """
         return self.send_vs_command(OCF.VENDOR_SPEC.RESET_SCAN_STATS)
-    

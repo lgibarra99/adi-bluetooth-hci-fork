@@ -50,6 +50,7 @@
 #
 ##############################################################################
 """Contains data classes used for HCI function parameters/returns."""
+
 from dataclasses import dataclass
 
 # pylint: disable=too-many-arguments,too-many-locals,too-many-instance-attributes
@@ -860,6 +861,7 @@ class PoolStats:
             print_lns.append(f"{key}:  {val}")
 
         return "\n".join(print_lns)
+
 
 @dataclass
 class TestStats:

@@ -55,10 +55,10 @@ max_ble_hci_cli.py
 Description: CLI Client to use MAX-BLE-HCI
 
 """
+
 import argparse
 import logging
 import os
-from pprint import pprint
 import signal
 import secrets
 
@@ -93,7 +93,6 @@ from max_ble_hci.packet_codes import EventMaskLE, StatusCode, EventCode, EventSu
 from max_ble_hci.hci_packets import EventPacket
 from max_ble_hci.ad_types import AdvReport
 from max_ble_hci import utils
-
 
 # pylint: enable=import-error
 
@@ -196,7 +195,7 @@ def _init_cli():
     parser.add_argument("--version", action="version", version="%(prog)s 1.4.1")
 
     parser.add_argument("serial_port", help="Serial port path or COM#")
-    
+
     parser.add_argument(
         "-b",
         "--baud",
@@ -212,7 +211,7 @@ def _init_cli():
         default=1,
         help="Number of stop bits. Default: 1",
     )
-    
+
     parser.add_argument(
         "-efc",
         "--enable-flow-control",
@@ -228,14 +227,14 @@ def _init_cli():
         default="DUT",
         help="Board ID tag for printing trace messages. Default: None",
     )
-    
+
     parser.add_argument(
         "--timeout",
         default=1.0,
         type=float,
         help="UART RX/TX Timeout",
     )
-    
+
     parser.add_argument(
         "-c",
         "--commands",
@@ -1164,7 +1163,7 @@ Default: {hex(DEFAULT_CE_LEN)}""",
                 channel=args.channel,
                 packet_type=args.packet_type,
                 inf_test=args.inf_test,
-                percount_mode=args.percount_mode
+                percount_mode=args.percount_mode,
             )
         )
     )
@@ -1180,11 +1179,11 @@ Default: {hex(DEFAULT_CE_LEN)}""",
     def _bt_end_test_vs(_args):
         metrics, status = hci.test_end_bt_vs()
         print(f"TX Transmitted/RX Received: {metrics.nb_packets}")
-        #print(f"RX RSSI Minimum: {metrics.rssi_min} dBm")
-        #print(f"RX RSSI Maximum: {metrics.rssi_max} dBm")
-        #print(f"RX RSSI Average: {metrics.rssi_avg} dBm")
+        # print(f"RX RSSI Minimum: {metrics.rssi_min} dBm")
+        # print(f"RX RSSI Maximum: {metrics.rssi_max} dBm")
+        # print(f"RX RSSI Average: {metrics.rssi_avg} dBm")
         print(status)
-    
+
     test_end_bt_vs_parser.set_defaults(func=_bt_end_test_vs)
 
     #### RXTEST PARSER ####
@@ -1359,7 +1358,6 @@ Default: {hex(DEFAULT_CE_LEN)}""",
         print(f"RX RSSI Average: {metrics.rssi_avg} dBm")
         print(status)
 
-
     endex_test_parser.set_defaults(func=_endex_test_vs)
 
     #### INFINITE TX/RX PARSER ####
@@ -1370,7 +1368,9 @@ Default: {hex(DEFAULT_CE_LEN)}""",
         formatter_class=RawTextHelpFormatter,
     )
     infinite_txrx_parser.add_argument(
-        "toggle", type=int, help="Enable or disable infinite tx/rx. Default: 0 (disable)"
+        "toggle",
+        type=int,
+        help="Enable or disable infinite tx/rx. Default: 0 (disable)",
     )
 
     infinite_txrx_parser.set_defaults(
@@ -1736,7 +1736,7 @@ Default: {hex(DEFAULT_CE_LEN)}""",
     make_parser.set_defaults(
         func=lambda args: os.system(f"make -j {args.jobs} -C {args.directory}")
     )
-    
+
     def _script_runner(script_path):
         print(script_path)
         with open(script_path, "r", encoding="utf-8") as script:

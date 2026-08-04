@@ -50,6 +50,7 @@
 #
 ##############################################################################
 """Contains HCI constants definitions."""
+
 from __future__ import annotations
 
 from enum import Enum
@@ -359,6 +360,7 @@ class BtTxPacketType(Enum):
 
     PKT_3EV5 = 0x15
     """3EV5 packet type """
+
 
 class PerCountMode(Enum):
     """DTM Per-count mode"""

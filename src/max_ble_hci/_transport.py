@@ -52,6 +52,7 @@
 """
 Contains serial port functionality for the HCI implementation.
 """
+
 import datetime
 import sys
 import time
@@ -322,7 +323,12 @@ class SerialUartTransport:
         self.start()
 
     def _init_port(
-        self, port_id: str, baud: int, exclusive: bool, flowcontrol=False, stop_bits=serial.STOPBITS_ONE
+        self,
+        port_id: str,
+        baud: int,
+        exclusive: bool,
+        flowcontrol=False,
+        stop_bits=serial.STOPBITS_ONE,
     ) -> None:
         """Initializes serial port.
 
