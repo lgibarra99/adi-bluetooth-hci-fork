@@ -340,7 +340,7 @@ class SerialUartTransport:
                 port=port_id,
                 baudrate=baud,
                 parity=serial.PARITY_NONE,
-                stopbits=self.stop_bits,
+                stopbits=stop_bits,
                 bytesize=serial.EIGHTBITS,
                 rtscts=flowcontrol,
                 dsrdtr=False,

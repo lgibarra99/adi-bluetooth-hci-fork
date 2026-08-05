@@ -663,7 +663,7 @@ class VendorSpecificCmds:
 
         return metrics, evt.status
 
-    def infinite_txrx_vs(self, toggle: int = 0) -> StatusCode:
+    def infinite_txrx_vs(self, toggle: bool = False) -> StatusCode:
         """Enables/Disables Infinite TX/RX.
 
         Sends a vendor-specific command to the DUT, telling it to
@@ -679,19 +679,11 @@ class VendorSpecificCmds:
         StatusCode
             The return packet status code.
 
-        Raises
-        ------
-        ValueError
-            If `toggle` is not a valid value
-
         """
 
-        if not 0 <= toggle <= 1:
-            raise ValueError(
-                f"Toggle is an invalid option({toggle}), must be 1 (enable) or 0 (disable)."
-            )
-
-        return self.send_vs_command(OCF.VENDOR_SPEC.SET_INFINITE_TXRX, params=toggle)
+        return self.send_vs_command(
+            OCF.VENDOR_SPEC.SET_INFINITE_TXRX, params=int(toggle)
+        )
 
     def percount_mode_vs(
         self, mode: Union[PerCountMode, int] = PerCountMode.CORRECT
