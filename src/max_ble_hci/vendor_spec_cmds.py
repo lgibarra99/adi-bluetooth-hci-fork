@@ -66,7 +66,8 @@ from .constants import (
     PatternOption,
     PubKeyValidateMode,
     BtTxPacketType,
-    PerCountMode,
+    LEPerCountMode,
+    BTPerCountMode,
 )
 from .data_params import (
     AdvPktStats,
@@ -489,7 +490,7 @@ class VendorSpecificCmds:
         channel: int = 0,
         packet_type: Union[BtTxPacketType, int] = BtTxPacketType.PKT_DM1,
         inf_test: bool = False,
-        percount_mode: Union[PerCountMode, int] = PerCountMode.CORRECT,
+        percount_mode: Union[BTPerCountMode, int] = BTPerCountMode.CORRECT,
     ) -> StatusCode:
         """Start a vendor-specific Bluetooth Classic receiver test.
 
@@ -505,7 +506,7 @@ class VendorSpecificCmds:
             The type of packet to receive.
         inf_test: bool
             Infinite RX test mode.
-        percount_mode: Union[PerCountMode, int]
+        percount_mode: Union[BTPerCountMode, int]
             Percount mode
 
         Returns
@@ -540,13 +541,13 @@ class VendorSpecificCmds:
             else packet_type
         )
 
-        if isinstance(percount_mode, PerCountMode):
+        if isinstance(percount_mode, BTPerCountMode):
             percount_mode = percount_mode.value
 
         params = [channel, packet_type, 0x01 if inf_test else 0x00, percount_mode]
         return self.send_vs_command(OCF.VENDOR_SPEC.BT_RX_TEST, params=params)
 
-    def test_end_bt_vs(self) -> Tuple[TestStats, StatusCode]:
+    def test_end_bt_vs(self) -> Tuple[int, StatusCode]:
         """End a Bluetooth Classic test and get packet count.
 
         Sends a vendor-specific command to the DUT to stop any
@@ -563,20 +564,9 @@ class VendorSpecificCmds:
         print("Parsing BT_TEST_END")
 
         evt = self.send_vs_command(OCF.VENDOR_SPEC.BT_TEST_END, return_evt=True)
-        data = evt.get_return_params(param_lens=[2, 1, 1, 1])
+        nb_packets = evt.get_return_params()
 
-        rssi_min = data[1] if data[1] < 128 else data[1] - 256
-        rssi_max = data[2] if data[2] < 128 else data[2] - 256
-        rssi_avg = data[3] if data[3] < 128 else data[3] - 256
-
-        metrics = TestStats(
-            nb_packets=data[0],
-            rssi_min=rssi_min,
-            rssi_max=rssi_max,
-            rssi_avg=rssi_avg,
-        )
-
-        return metrics, evt.status
+        return nb_packets, evt.status
 
     def rx_test_vs(
         self,
@@ -637,13 +627,15 @@ class VendorSpecificCmds:
         """End a Bluetooth LE test and get extended metrics.
 
         Sends a vendor-specific command to the DUT to stop any
-        running BLE test (TX or RX) and returns metric data from test
+        running BLE test (TX or RX) and returns the number of packets
+        transmitted/received and RSSI measurements
 
         Returns
         -------
         Tuple[Metrics, StatusCode]
             A tuple containing:
             - A structure that holds the number of packets,
+              rssi max, min, and average measurements
             - The status code of the command
 
         """
@@ -686,7 +678,7 @@ class VendorSpecificCmds:
         )
 
     def percount_mode_vs(
-        self, mode: Union[PerCountMode, int] = PerCountMode.CORRECT
+        self, mode: Union[LEPerCountMode, int] = LEPerCountMode.CORRECT
     ) -> StatusCode:
         """Sets the per-count mode during a Direct RX Test.
 
@@ -705,7 +697,7 @@ class VendorSpecificCmds:
 
         """
 
-        if isinstance(mode, PerCountMode):
+        if isinstance(mode, LEPerCountMode):
             mode = mode.value
 
         return self.send_vs_command(OCF.VENDOR_SPEC.SET_PERCOUNT_MODE, params=mode)

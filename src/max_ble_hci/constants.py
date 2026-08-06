@@ -362,7 +362,7 @@ class BtTxPacketType(Enum):
     """3EV5 packet type """
 
 
-class PerCountMode(Enum):
+class LEPerCountMode(Enum):
     """DTM Per-count mode"""
 
     CORRECT = 0x0
@@ -376,3 +376,19 @@ class PerCountMode(Enum):
 
     RECEPTION_ERROR = 0x3
     """Reception Error detected"""
+
+
+class BTPerCountMode(Enum):
+    """DTM Per-count mode"""
+
+    CORRECT = 0x0
+    """Correctly received packets (no error)"""
+
+    ACCESS_ADDRESS_DETECTION_ERROR = 0x1
+    """Access Address detection error only"""
+
+    HEC_ERROR = 0x2
+    """HEC Error detection only"""
+
+    CRC_ERROR = 0x4
+    """CRC Error detection only"""

@@ -1150,11 +1150,11 @@ Default: {hex(DEFAULT_CE_LEN)}""",
         dest="percount_mode",
         type=int,
         default=0,
-        help="""Percount mode.
+        help="""BT Percount mode configuration.
          0: Number of correctly received packets (no error)
          1: Number of Access Address detection error only 
-         2: Number of CRC Error detection only
-         3: Reception Error detected
+         2: Number of HEC Error detection only
+         4: Number of CRC Error detection only
          Default: 0""",
     )
     rx_test_bt_vs_parser.set_defaults(
@@ -1177,11 +1177,8 @@ Default: {hex(DEFAULT_CE_LEN)}""",
     )
 
     def _bt_end_test_vs(_args):
-        metrics, status = hci.test_end_bt_vs()
-        print(f"TX Transmitted/RX Received: {metrics.nb_packets}")
-        # print(f"RX RSSI Minimum: {metrics.rssi_min} dBm")
-        # print(f"RX RSSI Maximum: {metrics.rssi_max} dBm")
-        # print(f"RX RSSI Average: {metrics.rssi_avg} dBm")
+        nb_packets, status = hci.test_end_bt_vs()
+        print(f"TX Transmitted/RX Received: {nb_packets}")
         print(status)
 
     test_end_bt_vs_parser.set_defaults(func=_bt_end_test_vs)
@@ -1381,7 +1378,7 @@ Default: {hex(DEFAULT_CE_LEN)}""",
     set_percount_mode_parser = subparsers.add_parser(
         "set-percount-mode",
         aliases=["percount-mode"],
-        help="Set percount mode on DUT",
+        help="Set percount mode on DUT LE Core",
         formatter_class=RawTextHelpFormatter,
     )
 
@@ -1389,7 +1386,7 @@ Default: {hex(DEFAULT_CE_LEN)}""",
         "mode",
         type=int,
         default=0,
-        help="""Percount mode.
+        help="""LE Percount mode configuration.
          0: Number of correctly received packets (no error)
          1: Number of Access Address detection error only 
          2: Number of CRC Error detection only
