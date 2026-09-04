@@ -879,13 +879,13 @@ class TestStats:
         """Number of packets received/transmitted (depending on test)."""
 
         self.rssi_min = rssi_min
-        """Number of packets received with a CRC error."""
+        """Minimum RSSI value measured."""
 
         self.rssi_max = rssi_max
-        """Number of RX timeouts."""
+        """Maximum RSSI value measured."""
 
         self.rssi_avg = rssi_avg
-        """Number of correctly transmitted packets."""
+        """Average RSSI value measured."""
 
     # pylint-enable=too-many-positional-arguments
 
